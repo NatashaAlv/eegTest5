@@ -121,17 +121,28 @@ document.getElementById("load").onclick = () => {
   moveCursor(values[0]);
 };
 
-function moveCursor(value) {
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
 
-  const percent = (value - min) / range;
-  cursor.style.left =
-    (10 + percent * (area.clientWidth - 20)) + "px";
+function moveCursor(value) {
+  const sorted = [...values].sort((a, b) => a - b);
+
+  // Ignore extreme values at the top and bottom.
+  const low = sorted[Math.floor(sorted.length * 0.05)];
+  const high = sorted[Math.floor(sorted.length * 0.95)];
+
+  const range = high - low || 1;
+
+  // Keep the cursor inside the box.
+  const percent = Math.max(
+    0,
+    Math.min(1, (value - low) / range)
+  );
+
+  const x = 10 + percent * (area.clientWidth - 20);
+  cursor.style.left = x + "px";
 
   signal.textContent = value.toFixed(3);
 }
+
 
 document.getElementById("start").onclick = () => {
   if (!values.length || timer) return;

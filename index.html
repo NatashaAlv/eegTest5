@@ -1,0 +1,170 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>EEG Mouse</title>
+<style>
+body {
+  background: #10111c;
+  color: white;
+  font-family: Arial, sans-serif;
+  padding: 25px;
+}
+h1 { color: #69eaff; }
+button, input, select {
+  padding: 10px;
+  margin: 5px;
+}
+#area {
+  height: 350px;
+  background: #1b1d2d;
+  border: 2px solid #69eaff;
+  position: relative;
+  margin-top: 20px;
+  overflow: hidden;
+}
+#cursor {
+  width: 22px;
+  height: 22px;
+  background: #ff65bd;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+</style>
+</head>
+<body>
+
+<h1>EEG Mouse Prototype</h1>
+<p>Upload recorded EEG data to move the cursor.</p>
+
+<input type="file" id="file" accept=".csv,.txt">
+<br>
+<label>Column:</label>
+<select id="column">
+  <option value="0">Column 1</option>
+</select>
+<button id="load">Load Data</button>
+
+<p id="status">Choose a CSV or TXT file.</p>
+<p>Signal: <span id="signal">—</span></p>
+
+<button id="start">Start</button>
+<button id="pause">Pause</button>
+<button id="reset">Reset</button>
+
+<div id="area">
+  <div id="cursor"></div>
+</div>
+
+<script>
+let rows = [];
+let values = [];
+let index = 0;
+let timer = null;
+
+const fileInput = document.getElementById("file");
+const column = document.getElementById("column");
+const cursor = document.getElementById("cursor");
+const area = document.getElementById("area");
+const status = document.getElementById("status");
+const signal = document.getElementById("signal");
+
+fileInput.addEventListener("change", async () => {
+  const file = fileInput.files[0];
+  if (!file) return;
+
+  const text = await file.text();
+
+  rows = text.split(/\r?\n/)
+    .filter(line => line.trim())
+    .map(line => line.trim().split(/[,\t;]+/));
+
+  // Keep rows that contain numeric data.
+  rows = rows.filter(row =>
+    row.some(cell => cell.trim() !== "" &&
+      Number.isFinite(Number(cell)))
+  );
+
+  if (!rows.length) {
+    status.textContent = "No numeric data found.";
+    return;
+  }
+
+  const count = Math.max(...rows.map(row => row.length));
+  column.innerHTML = "";
+
+  for (let i = 0; i < count; i++) {
+    column.add(new Option("Column " + (i + 1), i));
+  }
+
+  status.textContent = "File loaded. Choose a column and click Load Data.";
+});
+
+document.getElementById("load").onclick = () => {
+  clearInterval(timer);
+  timer = null;
+  values = rows
+    .map(row => Number(row[Number(column.value)]))
+    .filter(Number.isFinite);
+
+  if (values.length < 2) {
+    status.textContent = "Choose another column.";
+    return;
+  }
+
+  index = 0;
+  status.textContent = values.length + " samples loaded.";
+  moveCursor(values[0]);
+};
+
+function moveCursor(value) {
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const percent = (value - min) / range;
+  cursor.style.left =
+    (10 + percent * (area.clientWidth - 20)) + "px";
+
+  signal.textContent = value.toFixed(3);
+}
+
+document.getElementById("start").onclick = () => {
+  if (!values.length || timer) return;
+
+  timer = setInterval(() => {
+    if (index >= values.length) {
+      clearInterval(timer);
+      timer = null;
+      status.textContent = "Playback finished.";
+      return;
+    }
+
+    moveCursor(values[index]);
+    index++;
+  }, 20);
+};
+
+document.getElementById("pause").onclick = () => {
+  clearInterval(timer);
+  timer = null;
+  status.textContent = "Paused.";
+};
+
+document.getElementById("reset").onclick = () => {
+  clearInterval(timer);
+  timer = null;
+  index = 0;
+
+  if (values.length) moveCursor(values[0]);
+
+  status.textContent = "Reset. Click Start to replay.";
+};
+</script>
+
+</body>
+</html>
